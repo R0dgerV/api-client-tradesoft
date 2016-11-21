@@ -3,6 +3,7 @@
 namespace R0dgerV\ApiClientTradesoft;
 
 use GuzzleHttp\Client;
+use R0dgerV\ApiClientTradesoft\exceptions\ApiErrorException;
 
 /**
  * Class ApiClient
@@ -47,9 +48,9 @@ class ApiClient
     protected $service = 'provider';
 
     /**
-     * @var bool
+     * @var array
      */
-    protected $returnArray = false;
+    protected $container = [];
 
     /**
      * @param string $username
@@ -65,7 +66,7 @@ class ApiClient
 
     /**
      * Запрос возвращает список подключенных к учетной записи поставщиков.
-     * @return object|array
+     * @return array
      */
     public function getProviderList()
     {
@@ -80,19 +81,112 @@ class ApiClient
 
     /**
      * Запрос возвращает список опций доступных поставщику.
-     * @param array $container
-     * @return object|array
+     * @return array
      */
-    public function getOptionsList(array $container)
+    public function getOptionsList()
     {
         $data = array_merge($this->getBaseData(),
             [
                 'action' => 'GetOptionsList',
-                'container' => $container
+                'container' => $this->container
             ]
         );
 
+        return $this->getQuery($data, true);
+    }
+
+    /**
+     * @param string $name
+     * @param string $login
+     * @param string $password
+     * @return $this
+     */
+    public function generateProviderContentForOptionsList($name, $login, $password)
+    {
+        $this->container[] = $this->generateBaseProviderContent($name, $login, $password);
+
+        return $this;
+    }
+
+    /**
+     * @param string $name
+     * @param string $login
+     * @param string $password
+     * @param string $code
+     * @return $this
+     */
+    public function generateProviderContentForProducerList($name, $login, $password, $code)
+    {
+        $this->container[] = array_merge($this->generateBaseProviderContent($name, $login, $password),
+            [
+                'code' => $code,
+            ]);
+
+        return $this;
+    }
+
+    /**
+     * @param string $name
+     * @param string $login
+     * @param string $password
+     * @param string $code
+     * @param string $producer
+     * @param array $options
+     * @return $this
+     */
+    public function generateProviderContentForPriceList($name, $login, $password, $code, $producer, array $options = [])
+    {
+        $this->container[] = array_merge($this->generateBaseProviderContent($name, $login, $password),
+            [
+                'code' => $code,
+                'producer' => $producer,
+                'options' => $options,
+            ]);
+
+        return $this;
+    }
+
+    /**
+     * Запрос возвращает список предложений по коду и производителю.
+     * @return array
+     */
+    public function getPriceList()
+    {
+        $data = array_merge($this->getBaseData(),
+            [
+                'action' => 'getPriceList',
+                'timeLimit' => $this->timeLimit,
+                'container' => $this->container
+            ]
+        );
         return $this->getQuery($data);
+    }
+
+    /**
+     * Запрос возвращает список производителей по коду.
+     * @return array
+     */
+    public function getProducerList()
+    {
+        $data = array_merge($this->getBaseData(),
+            [
+                'action' => 'getProducerList',
+                'timeLimit' => $this->timeLimit,
+                'container' => $this->container
+            ]
+        );
+        return $this->getQuery($data);
+    }
+
+    /**
+     * @return Client
+     */
+    protected function getClient()
+    {
+        if (!$this->client) {
+            $this->client = new Client(['base_uri' => $this->baseUrl]);
+        }
+        return $this->client;
     }
 
     /**
@@ -111,92 +205,11 @@ class ApiClient
     }
 
     /**
-     * @param string $name
-     * @param string $login
-     * @param string $password
-     * @return array
-     */
-    public function generateProviderContent($name, $login, $password)
-    {
-        return [$this->generateBaseProviderContent($name, $login, $password)];
-    }
-
-    /**
-     * @param string $name
-     * @param string $login
-     * @param string $password
-     * @param string $code
-     * @return array
-     */
-    public function generateProviderContentForProducerList($name, $login, $password, $code)
-    {
-        return [array_merge($this->generateBaseProviderContent($name, $login, $password),
-            [
-                'code' => $code,
-            ])];
-    }
-
-    /**
-     * @param string $name
-     * @param string $login
-     * @param string $password
-     * @param string $code
-     * @param string $producer
-     * @return array
-     */
-    public function generateProviderContentForPriceList($name, $login, $password, $code, $producer)
-    {
-        return [array_merge($this->generateBaseProviderContent($name, $login, $password),
-            [
-                'code' => $code,
-                'producer' => $producer
-            ])];
-    }
-
-    /**
-     * Запрос возвращает список производителей по коду.
-     * @return object|array
-     */
-    public function getProducerList(array $container)
-    {
-        $data = array_merge($this->getBaseData(),
-            [
-                'action' => 'getProducerList',
-                'timeLimit' => $this->timeLimit,
-                'container' => $container
-            ]
-        );
-        return $this->getQuery($data);
-    }
-
-    /**
-     * @param bool $var
-     * @return $this
-     */
-    public function setReturnArray($var)
-    {
-        $this->returnArray = boolval($var);
-
-        return $this;
-    }
-
-    /**
-     * @return Client
-     */
-    protected function getClient()
-    {
-        if (!$this->client) {
-            $this->client = new Client(['base_uri' => $this->baseUrl]);
-        }
-        return $this->client;
-    }
-
-
-    /**
      * @param array $data
-     * @return object|array
+     * @param bool $indexKey
+     * @return array
      */
-    protected function getQuery(array $data)
+    protected function getQuery(array $data, $indexKey = false)
     {
         $response = $this->getClient()->request('POST', $this->getUrlQuery(), [
             'headers' => [
@@ -205,7 +218,49 @@ class ApiClient
             ],
             'body' => \GuzzleHttp\json_encode($data)
         ]);
-        return \GuzzleHttp\json_decode($response->getBody(), $this->returnArray);
+
+        $result = \GuzzleHttp\json_decode($response->getBody(), true);
+        if (!empty($result['error'])) {
+            throw new ApiErrorException($result['error']);
+        }
+
+        $array = $this->convertResponse($result, $indexKey);
+
+        return $array;
+    }
+
+
+    /**
+     * @param array $result
+     * @param bool $indexKey
+     * @return array
+     */
+    protected function convertResponse(array $result, $indexKey)
+    {
+        $array = [];
+        if (isset($result['data'])) {
+            return $result['data'];
+        }
+
+        if (isset($result['container'])) {
+            foreach ($result['container'] as $providers) {
+                if (!empty($providers['error'])) {
+                    throw new ApiErrorException($providers['provider'] . ' - ' .$providers['error']);
+                }
+                if ($indexKey) {
+                    $array[$providers['provider']] = $providers['data'];
+                } else {
+                    if (isset($providers['data'])) {
+                        foreach ($providers['data'] as $model) {
+                            $array[] = array_merge($model, ['provider' => $providers['provider']]);
+                        }
+                    }
+                }
+            }
+        }
+
+        return $array;
+
     }
 
     /**
