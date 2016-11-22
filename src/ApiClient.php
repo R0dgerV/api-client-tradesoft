@@ -53,6 +53,11 @@ class ApiClient
     protected $container = [];
 
     /**
+     * @var bool
+     */
+    protected $error = false;
+
+    /**
      * @param string $username
      * @param string $password
      * @param string $baseUrl
@@ -62,6 +67,14 @@ class ApiClient
         $this->username = $username;
         $this->password = $password;
         $this->baseUrl = $baseUrl;
+    }
+
+    /**
+     * Кидать исключение ошибки если один при запросе к одному из провайдеров произошла ошибка (или время превышено)
+     * @param bool|true $status
+     */
+    public function setError($status = true) {
+        $this->error = $status;
     }
 
     /**
@@ -255,7 +268,7 @@ class ApiClient
 
         if (isset($result['container'])) {
             foreach ($result['container'] as $providers) {
-                if (!empty($providers['error'])) {
+                if ($this->error && !empty($providers['error'])) {
                     throw new ApiErrorException($providers['provider'] . ' - ' .$providers['error']);
                 }
                 if ($indexKey) {
