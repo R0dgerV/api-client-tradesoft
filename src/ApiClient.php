@@ -113,13 +113,14 @@ class ApiClient
      * @param string $login
      * @param string $password
      * @param string $code
+     * @param bool $normalize
      * @return $this
      */
-    public function generateProviderContentForProducerList($name, $login, $password, $code)
+    public function generateProviderContentForProducerList($name, $login, $password, $code, $normalize = false)
     {
         $this->container[] = array_merge($this->generateBaseProviderContent($name, $login, $password),
             [
-                'code' => $code,
+                'code' => $normalize ? $this->normalizeText($code) : $code,
             ]);
 
         return $this;
@@ -132,13 +133,22 @@ class ApiClient
      * @param string $code
      * @param string $producer
      * @param array $options
+     * @param bool $normalize
      * @return $this
      */
-    public function generateProviderContentForPriceList($name, $login, $password, $code, $producer, array $options = [])
+    public function generateProviderContentForPriceList(
+        $name,
+        $login,
+        $password,
+        $code,
+        $producer,
+        array $options = [],
+        $normalize = false
+    )
     {
         $this->container[] = array_merge($this->generateBaseProviderContent($name, $login, $password),
             [
-                'code' => $code,
+                'code' => $normalize ? $this->normalizeText($code) : $code,
                 'producer' => $producer,
                 'options' => $options,
             ]);
@@ -159,6 +169,7 @@ class ApiClient
                 'container' => $this->container
             ]
         );
+
         return $this->getQuery($data);
     }
 
@@ -283,4 +294,12 @@ class ApiClient
         ];
     }
 
+    /**
+     * Убираем не нужные символы
+     * @param string $text
+     * @return string mixed
+     */
+    protected function normalizeText($text) {
+        return preg_replace('/[\s+\.\/\\_-]+/', '', $text);
+    }
 }
